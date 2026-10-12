@@ -11,15 +11,17 @@
 #define LED_BRANCO 19
 #define LED_VERMELHO 5
 #define LED_VERDE 18
+uint8_t mac_address[6];
 
-typedef struct {
-    int n_piscadas;
-    int cor_led;
-    int velocidade_piscadas;
+typedef struct __attribute__((packed)) {
+    uint8_t n_piscadas;
+    uint8_t cor_led;
+    uint8_t velocidade_piscadas;
 } dados_tarefa_t;
 
-typedef struct {
-    int esp;
+typedef struct __attribute__((packed)){
+    uint8_t tipo_pacote;
+    uint8_t esp_mac_address[6];
     bool concluida;
 } dados_resposta_t;
 
@@ -56,7 +58,8 @@ void task_tarefa_leds(void *params){
             case TAREFA_RECEBIDA:
                 if (contador > resposta.n_piscadas){
                     st_tarefas = TAREFA_CONCLUIDA;
-                    dados_resposta_t resposta = {.esp = 1, .concluida = true};
+                    dados_resposta_t resposta = {.tipo_pacote = 2, .concluida = true};
+                    memcpy(resposta.esp_mac_address, mac_address, sizeof(resposta.esp_mac_address));
                     esp_now_send(transmissor_mac, (uint8_t*)&resposta, sizeof(resposta));
                     contador = 0;
                     break;
@@ -108,6 +111,12 @@ void app_main(){
     esp_now_add_peer(&peer);
 
     esp_now_register_recv_cb(on_data_recv);
+
+    esp_wifi_get_mac(WIFI_IF_STA, mac_address);
+    dados_resposta_t config_esp_mac = {.concluida = 1,.tipo_pacote = 1};
+    memcpy(config_esp_mac.esp_mac_address, mac_address, sizeof(config_esp_mac.esp_mac_address));
+
+    esp_now_send(transmissor_mac, (uint8_t*)&config_esp_mac, sizeof(dados_resposta_t));
 
     xTaskCreate(task_tarefa_leds, "Tarefa Leds", 2048, NULL, 5, NULL);
 }
