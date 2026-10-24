@@ -12,6 +12,7 @@
 #define LED_VERMELHO 5
 #define LED_VERDE 18
 uint8_t mac_address[6];
+int timeout_conexao = 0;
 
 typedef struct __attribute__((packed)) {
     uint8_t n_piscadas;
@@ -56,6 +57,7 @@ void task_tarefa_leds(void *params){
     for (;;){
         switch(st_tarefas){
             case TAREFA_RECEBIDA:
+            timeout_conexao = 0;
                 if (contador > resposta.n_piscadas){
                     st_tarefas = TAREFA_CONCLUIDA;
                     dados_resposta_t resposta = {.tipo_pacote = 2, .concluida = true};
@@ -81,7 +83,15 @@ void task_tarefa_leds(void *params){
                     break;
                 }
             case TAREFA_CONCLUIDA:
-                vTaskDelay(pdMS_TO_TICKS(250));
+                vTaskDelay(pdMS_TO_TICKS(1000));
+                timeout_conexao++;
+                if (timeout_conexao >= 30) {
+                    dados_resposta_t config_esp_mac = {.concluida = 1,.tipo_pacote = 1};
+                    memcpy(config_esp_mac.esp_mac_address, mac_address, sizeof(config_esp_mac.esp_mac_address));
+                    esp_now_send(transmissor_mac, (uint8_t*)&config_esp_mac, sizeof(dados_resposta_t));
+                    esp_now_send(transmissor_mac, (uint8_t*)&resposta, sizeof(resposta));
+                    timeout_conexao = 0;
+                }
                 break;
         }
     }
